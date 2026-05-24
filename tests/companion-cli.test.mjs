@@ -27,3 +27,16 @@ test("opencode-companion rejects unknown subcommands with exit 1", () => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Unknown subcommand/);
 });
+
+test("opencode-companion refuses to run from inside opencode's own data directory", () => {
+  // Use a temp dir that includes the canonical marker `.local/share/opencode`
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const guardDir = path.join(os.tmpdir(), `opcguard-${Date.now()}`, ".local", "share", "opencode", "storage");
+  fs.mkdirSync(guardDir, { recursive: true });
+
+  const result = run("node", [COMPANION, "status", "--json"], { cwd: guardDir });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Refusing to run opencode from inside its own data directory/);
+  assert.match(result.stderr, /stale `cd`/);
+});
