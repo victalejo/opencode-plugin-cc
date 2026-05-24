@@ -40,8 +40,22 @@ function shorten(text, limit = 72) {
   return `${normalized.slice(0, limit - 3)}...`;
 }
 
+/**
+ * Strip characters that shell interpreters (especially Windows cmd.exe with
+ * `shell: true`) would treat as metacharacters and accidentally redirect or
+ * fork. Used for any user-controlled string that ends up in argv, like the
+ * `--title` flag we pass to `opencode run`.
+ */
+function sanitizeArgValue(text) {
+  return String(text ?? "")
+    .replace(/[<>|&"`$%\r\n\t]/g, " ")
+    .replace(/\\/g, "/")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function buildPersistentTaskSessionName(prompt) {
-  const excerpt = shorten(prompt, 56);
+  const excerpt = shorten(sanitizeArgValue(prompt), 56);
   return excerpt ? `${TASK_SESSION_PREFIX}: ${excerpt}` : TASK_SESSION_PREFIX;
 }
 
@@ -159,15 +173,15 @@ function reportProgress(onProgress, payload) {
 function buildRunArgs(options) {
   const args = ["run", "--format", "json"];
   if (options.resumeSessionId) {
-    args.push("--continue", "--session", options.resumeSessionId);
+    args.push("--continue", "--session", sanitizeArgValue(options.resumeSessionId));
   } else if (options.sessionName) {
-    args.push("--title", options.sessionName);
+    args.push("--title", sanitizeArgValue(options.sessionName));
   }
   if (options.model) {
-    args.push("--model", options.model);
+    args.push("--model", sanitizeArgValue(options.model));
   }
   if (options.agent) {
-    args.push("--agent", options.agent);
+    args.push("--agent", sanitizeArgValue(options.agent));
   }
   if (options.write) {
     args.push("--dangerously-skip-permissions");

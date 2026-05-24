@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.2
+
+- Fix Windows spawn failure ("El sistema no puede encontrar el archivo
+  especificado" / ENOENT) when the user prompt contained shell metacharacters
+  such as `<`, `>`, `|`, `&`, `"`, `` ` ``, `$`, or `%`. The prompt excerpt
+  flowed into `opencode --title "..."` which, under `shell: true` on Windows,
+  let `cmd.exe` interpret `<task>` as stdin redirection. All argv values
+  (`--title`, `--model`, `--agent`, `--session`) are now sanitized before
+  spawn.
+- Harden the `opencode:rescue` subagent contract: it now explicitly forbids
+  using `Bash` for anything other than invoking the companion script. On
+  opencode failure it must surface the verbatim error, never improvise or
+  perform the task itself. This caused several earlier sessions to look like
+  opencode had completed work when in fact Claude had silently substituted.
+
 ## 0.1.1
 
 - Fix `touchedFiles` parsing: the JSONL stream from opencode 1.4.x exposes the

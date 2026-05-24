@@ -5,13 +5,13 @@
   },
   "metadata": {
     "description": "opencode plugins for Claude Code: delegate tasks and reviews to a local opencode server.",
-    "version": "0.1.1"
+    "version": "0.1.2"
   },
   "plugins": [
     {
       "name": "opencode",
       "description": "Use opencode from Claude Code to review code or delegate tasks.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "opencode-plugin-cc contributors"
       },

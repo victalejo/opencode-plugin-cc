@@ -37,6 +37,24 @@ test("buildPersistentTaskSessionName falls back to the bare prefix on empty prom
   assert.equal(buildPersistentTaskSessionName(null), "Opencode Companion Task");
 });
 
+test("buildPersistentTaskSessionName strips shell metacharacters that break Windows spawn", () => {
+  // Reproduces the real failure where `<task> Crea ... C:\\Users\\victo\\...`
+  // got passed to opencode --title and cmd.exe interpreted `<` as stdin redirect.
+  const name = buildPersistentTaskSessionName(
+    "<task> Crea el archivo C:\\Users\\victo\\hola-mundo\\index.html — pagina HTML </task>"
+  );
+  assert.doesNotMatch(name, /[<>|&"`$%]/);
+  assert.doesNotMatch(name, /\\\\/);
+  assert.match(name, /^Opencode Companion Task: /);
+  // The actual content (with backslashes turned into forward slashes) survives:
+  assert.match(name, /Crea el archivo/);
+});
+
+test("buildPersistentTaskSessionName collapses CR/LF/TAB into single spaces", () => {
+  const name = buildPersistentTaskSessionName("line one\r\n\tline two\nline three");
+  assert.equal(name, "Opencode Companion Task: line one line two line three");
+});
+
 test("parseStructuredOutput recovers JSON embedded in markdown code fences", () => {
   const text = "Reasoning...\n```json\n{\"verdict\":\"approve\",\"summary\":\"ok\"}\n```\n";
   const result = parseStructuredOutput(text);
