@@ -122,8 +122,30 @@ function parseCommandInput(argv, config = {}) {
   });
 }
 
+const OPENCODE_INTERNAL_DIRS = [
+  path.join("local", "share", "opencode"),
+  path.join(".local", "share", "opencode"),
+  path.join("config", "opencode"),
+  path.join(".config", "opencode")
+];
+
+function rejectOpencodeInternalCwd(cwd) {
+  const normalized = cwd.replace(/\\/g, "/").toLowerCase();
+  for (const marker of OPENCODE_INTERNAL_DIRS) {
+    if (normalized.includes(marker.replace(/\\/g, "/").toLowerCase())) {
+      throw new Error(
+        `Refusing to run opencode from inside its own data directory (cwd=${cwd}). ` +
+          "This usually means the shell carried over a stale `cd` from a previous turn. " +
+          "Re-run from your project root, e.g. `cd \"<your-repo-or-home>\" && ...`."
+      );
+    }
+  }
+}
+
 function resolveCommandCwd(options = {}) {
-  return options.cwd ? path.resolve(process.cwd(), options.cwd) : process.cwd();
+  const cwd = options.cwd ? path.resolve(process.cwd(), options.cwd) : process.cwd();
+  rejectOpencodeInternalCwd(cwd);
+  return cwd;
 }
 
 function resolveCommandWorkspace(options = {}) {
