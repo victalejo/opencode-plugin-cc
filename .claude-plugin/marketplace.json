@@ -1,0 +1,21 @@
+{
+  "name": "opencode-plugin-cc",
+  "owner": {
+    "name": "opencode-plugin-cc contributors"
+  },
+  "metadata": {
+    "description": "opencode plugins for Claude Code: delegate tasks and reviews to a local opencode server.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "opencode",
+      "description": "Use opencode from Claude Code to review code or delegate tasks.",
+      "version": "0.1.0",
+      "author": {
+        "name": "opencode-plugin-cc contributors"
+      },
+      "source": "./plugins/opencode"
+    }
+  ]
+}
