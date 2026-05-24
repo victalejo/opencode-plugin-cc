@@ -88,3 +88,86 @@ test("getSessionRuntimeStatus reports shared mode when OPENCODE_SERVER_URL is se
   assert.equal(status.mode, "shared");
   assert.equal(status.endpoint, "http://127.0.0.1:4096");
 });
+
+test("parseStreamLine captures filePath from opencode 1.4.x write tool events", () => {
+  const capture = emptyCapture();
+  const realEvent = {
+    type: "tool_use",
+    sessionID: "ses_abc",
+    part: {
+      type: "tool",
+      tool: "write",
+      messageID: "msg_xyz",
+      state: {
+        status: "completed",
+        input: {
+          content: "hi",
+          filePath: "C:\\workspace\\hello.txt"
+        },
+        output: "Wrote file successfully."
+      }
+    }
+  };
+  parseStreamLine(JSON.stringify(realEvent), capture);
+  assert.deepEqual([...capture.touchedFiles], ["C:\\workspace\\hello.txt"]);
+  assert.equal(capture.sessionId, "ses_abc");
+  assert.equal(capture.lastMessageId, "msg_xyz");
+});
+
+test("parseStreamLine captures filePath from edit and multiedit tools too", () => {
+  const capture = emptyCapture();
+  parseStreamLine(
+    JSON.stringify({
+      type: "tool_use",
+      part: { tool: "edit", state: { input: { filePath: "/abs/a.js" } } }
+    }),
+    capture
+  );
+  parseStreamLine(
+    JSON.stringify({
+      type: "tool_use",
+      part: { tool: "multiedit", state: { input: { filePath: "/abs/b.js" } } }
+    }),
+    capture
+  );
+  assert.deepEqual([...capture.touchedFiles].sort(), ["/abs/a.js", "/abs/b.js"]);
+});
+
+test("parseStreamLine accumulates assistant text and step_finish tokens", () => {
+  const capture = emptyCapture();
+  parseStreamLine(
+    JSON.stringify({ type: "text", part: { text: "Hello " } }),
+    capture
+  );
+  parseStreamLine(
+    JSON.stringify({ type: "text", part: { text: "world." } }),
+    capture
+  );
+  parseStreamLine(
+    JSON.stringify({
+      type: "step_finish",
+      part: { tokens: { total: 9077, input: 8995, output: 82 } }
+    }),
+    capture
+  );
+  assert.equal(capture.textParts.join(""), "Hello world.");
+  assert.equal(capture.lastTokens.input, 8995);
+  assert.equal(capture.lastTokens.output, 82);
+});
+
+test("parseStreamLine tolerates dash-cased event types (step-start/step-finish)", () => {
+  const capture = emptyCapture();
+  parseStreamLine(
+    JSON.stringify({ type: "step-finish", part: { tokens: { input: 1, output: 2 } } }),
+    capture
+  );
+  assert.deepEqual(capture.lastTokens, { input: 1, output: 2 });
+});
+
+test("parseStreamLine silently ignores malformed JSON lines", () => {
+  const capture = emptyCapture();
+  parseStreamLine("not json", capture);
+  parseStreamLine("", capture);
+  assert.equal(capture.textParts.length, 0);
+  assert.equal(capture.touchedFiles.size, 0);
+});
