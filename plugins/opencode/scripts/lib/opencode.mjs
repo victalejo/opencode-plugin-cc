@@ -198,26 +198,36 @@ function parseStreamLine(line, capture) {
   }
   if (!event || typeof event !== "object") return;
 
+  const type = String(event.type ?? "").replace(/-/g, "_");
+
   if (event.sessionID && !capture.sessionId) {
     capture.sessionId = event.sessionID;
   }
   if (event.part?.messageID) {
     capture.lastMessageId = event.part.messageID;
   }
-  if (event.type === "text" && typeof event.part?.text === "string") {
+  if (type === "text" && typeof event.part?.text === "string") {
     capture.textParts.push(event.part.text);
   }
-  if (event.type === "step_finish" && event.part?.tokens) {
+  if (type === "step_finish" && event.part?.tokens) {
     capture.lastTokens = event.part.tokens;
   }
-  if (event.type === "tool_call" || event.type === "tool_use") {
-    const tool = event.part?.tool || event.part?.name;
-    const filePath = event.part?.input?.filePath || event.part?.args?.filePath;
-    if ((tool === "edit" || tool === "write") && filePath) {
+  if (type === "tool_call" || type === "tool_use" || type === "tool") {
+    const part = event.part ?? {};
+    const tool = part.tool ?? part.name;
+    const input = part.state?.input ?? part.input ?? part.args ?? {};
+    const filePath =
+      input.filePath ??
+      input.file_path ??
+      input.path ??
+      part.state?.metadata?.filepath ??
+      part.metadata?.filepath ??
+      null;
+    if ((tool === "edit" || tool === "write" || tool === "multiedit" || tool === "patch") && filePath) {
       capture.touchedFiles.add(filePath);
     }
   }
-  if (event.type === "error" && event.part?.message) {
+  if (type === "error" && event.part?.message) {
     capture.errors.push(event.part.message);
   }
 }
