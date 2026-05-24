@@ -1,30 +1,30 @@
 # Changelog
 
-## 0.1.3
+## 0.1.4
 
-### New features
+New commands and a new rescue flag, plus a Spanish README and a CI badge.
 
 - `/opencode:rescue --context <file1,file2,...>` inlines the contents of the
   listed files into the prompt sent to opencode, so opencode does not need to
   spend a discovery turn re-locating them. The flag is preserved through the
-  rescue subagent and through the background task worker.
+  rescue subagent and the background task worker, and file contents are
+  framed with explicit markers in the prompt.
 - New `/opencode:sessions` command wraps `opencode session list --format json`
   and prints a table filtered to the current workspace by default. Supports
   `--all` (show every directory) and `--max-count <n>` (default 20). Each row
   includes the session id, title, relative age, and starting directory.
 - New `/opencode:diff` command shows a `git diff HEAD` plus a
   `git status --porcelain` scoped to the files opencode reported touching in
-  the last (or specified) rescue job. Quickly review only the changes a
-  `--write` rescue produced, without surrounding edits the user made in
-  parallel.
+  the last (or specified) rescue job. Useful to quickly review only the
+  changes a `--write` rescue produced, without mixing in parallel edits.
 - README now ships with a Spanish translation at `README.es.md`, plus a CI
   badge in the header that links to the GitHub Actions workflow.
 
-### Bug fixes
+## 0.1.3
 
 End-to-end validation of `--background`, `--cancel`, `--resume`, multi-file
-`review`, and the `Stop` review-gate hook against a real opencode 1.4.x runtime
-surfaced these:
+`review`, and the `Stop` review-gate hook against a real opencode 1.4.x runtime.
+Two latent bugs surfaced and were fixed:
 
 - `terminateProcessTree` failed under Git Bash / MSYS shells because the
   literal `/PID` argument was being rewritten to `C:/Program Files/Git/PID`.
@@ -35,9 +35,6 @@ surfaced these:
   leaving jobs stuck in `running`. The terminate step is now wrapped in
   try/catch so cancellation still marks the job as `cancelled` even if the
   underlying process kill fails.
-
-### Improvements
-
 - `runOpencodeTurn` now reports `session.opened` and `turn.running` progress
   events as soon as opencode emits its first `sessionID` / `messageID`, so
   `/opencode:status` and `/opencode:cancel` can act on the real thread id
