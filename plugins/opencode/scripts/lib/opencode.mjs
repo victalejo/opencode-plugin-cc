@@ -189,7 +189,7 @@ function spawnOpencodeRun(cwd, args, env) {
   });
 }
 
-function parseStreamLine(line, capture) {
+export function parseStreamLine(line, capture) {
   let event;
   try {
     event = JSON.parse(line);

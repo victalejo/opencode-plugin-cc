@@ -3,11 +3,23 @@ import assert from "node:assert/strict";
 
 import {
   parseStructuredOutput,
+  parseStreamLine,
   buildPersistentTaskSessionName,
   DEFAULT_CONTINUE_PROMPT,
   getOpencodeAvailability,
   getSessionRuntimeStatus
 } from "../plugins/opencode/scripts/lib/opencode.mjs";
+
+function emptyCapture() {
+  return {
+    sessionId: null,
+    lastMessageId: null,
+    textParts: [],
+    touchedFiles: new Set(),
+    errors: [],
+    lastTokens: null
+  };
+}
 
 test("buildPersistentTaskSessionName produces a deterministic prefix and excerpt", () => {
   const name = buildPersistentTaskSessionName("rescue the failing build pipeline");
