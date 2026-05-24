@@ -8,6 +8,11 @@
   recognises `multiedit` and `patch` tools, and falls back through several
   metadata locations for the file path. New unit tests in `tests/opencode.test.mjs`
   pin the contract.
+- Reject opencode-internal directories (`~/.local/share/opencode/...`,
+  `~/.config/opencode/...`) as a workspace cwd. Prevents the silent failure where
+  a stale `cd` inside Claude Code's persistent Bash shell makes opencode treat
+  its own storage directory as the project root and auto-reject every write as
+  `external_directory`.
 
 ## 0.1.0
 
