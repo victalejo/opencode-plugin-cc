@@ -64,9 +64,18 @@ export function terminateProcessTree(pid, options = {}) {
   const killImpl = options.killImpl ?? process.kill.bind(process);
 
   if (platform === "win32") {
+    // Git Bash / MSYS rewrites argv beginning with `/` into a translated
+    // Windows path (`/PID` → `C:/Program Files/Git/PID`), which breaks
+    // taskkill. Setting MSYS_NO_PATHCONV=1 and MSYS2_ARG_CONV_EXCL=*
+    // disables that conversion for this child process only.
+    const taskkillEnv = {
+      ...(options.env ?? process.env),
+      MSYS_NO_PATHCONV: "1",
+      MSYS2_ARG_CONV_EXCL: "*"
+    };
     const result = runCommandImpl("taskkill", ["/PID", String(pid), "/T", "/F"], {
       cwd: options.cwd,
-      env: options.env
+      env: taskkillEnv
     });
 
     if (!result.error && result.status === 0) {

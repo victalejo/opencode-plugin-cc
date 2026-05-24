@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.1.3
+
+End-to-end validation of `--background`, `--cancel`, `--resume`, multi-file
+`review`, and the `Stop` review-gate hook against a real opencode 1.4.x runtime.
+Two latent bugs surfaced and were fixed:
+
+- `terminateProcessTree` failed under Git Bash / MSYS shells because the
+  literal `/PID` argument was being rewritten to `C:/Program Files/Git/PID`.
+  We now spawn `taskkill` with `MSYS_NO_PATHCONV=1` and
+  `MSYS2_ARG_CONV_EXCL=*`, restoring `/opencode:cancel` on Windows shells that
+  share Git Bash's path translation.
+- `handleCancel` aborted partway through when `taskkill` returned non-zero,
+  leaving jobs stuck in `running`. The terminate step is now wrapped in
+  try/catch so cancellation still marks the job as `cancelled` even if the
+  underlying process kill fails.
+- `runOpencodeTurn` now reports `session.opened` and `turn.running` progress
+  events as soon as opencode emits its first `sessionID` / `messageID`, so
+  `/opencode:status` and `/opencode:cancel` can act on the real thread id
+  mid-flight instead of waiting for the turn to complete.
+
 ## 0.1.2
 
 - Fix Windows spawn failure ("El sistema no puede encontrar el archivo

@@ -1,6 +1,10 @@
 # opencode plugin for Claude Code
 
+[![CI](https://github.com/victalejo/opencode-plugin-cc/actions/workflows/pull-request-ci.yml/badge.svg)](https://github.com/victalejo/opencode-plugin-cc/actions/workflows/pull-request-ci.yml)
+
 Use [opencode](https://opencode.ai) from inside Claude Code for code reviews or to delegate tasks.
+
+> Léelo en [español](README.es.md).
 
 This plugin is a port of OpenAI's `codex-plugin-cc` that swaps the Codex backend for the [opencode CLI](https://opencode.ai/docs/cli). Each task or review shells out to `opencode run --format json`, captures the JSONL event stream, and surfaces the resulting session id so jobs can be resumed later with `opencode run --continue --session <id>`. The same workflow lives on the Claude Code side: slash commands, a rescue subagent, optional stop-time review gate, background job tracking, and result reporting.
 

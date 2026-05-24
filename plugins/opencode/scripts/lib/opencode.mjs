@@ -310,6 +310,8 @@ export async function runOpencodeTurn(cwd, options = {}) {
   child.stdout.setEncoding("utf8");
   child.stderr.setEncoding("utf8");
 
+  let reportedSessionId = options.resumeSessionId ?? null;
+  let reportedMessageId = null;
   child.stdout.on("data", (chunk) => {
     stdoutBuffer += chunk;
     let newlineIndex = stdoutBuffer.indexOf("\n");
@@ -318,6 +320,27 @@ export async function runOpencodeTurn(cwd, options = {}) {
       stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
       if (line) parseStreamLine(line, capture);
       newlineIndex = stdoutBuffer.indexOf("\n");
+    }
+    // As soon as opencode emits its first session/message id, push it to the
+    // job tracker so `/opencode:status` and `/opencode:cancel` can act on it
+    // mid-flight (otherwise threadId stays null until the turn completes).
+    if (capture.sessionId && capture.sessionId !== reportedSessionId) {
+      reportedSessionId = capture.sessionId;
+      reportProgress(options.onProgress, {
+        message: `opencode session opened: ${capture.sessionId}`,
+        phase: "session.opened",
+        threadId: capture.sessionId,
+        turnId: capture.lastMessageId
+      });
+    }
+    if (capture.lastMessageId && capture.lastMessageId !== reportedMessageId) {
+      reportedMessageId = capture.lastMessageId;
+      reportProgress(options.onProgress, {
+        message: `opencode turn started: ${capture.lastMessageId}`,
+        phase: "turn.running",
+        threadId: capture.sessionId,
+        turnId: capture.lastMessageId
+      });
     }
   });
   child.stderr.on("data", (chunk) => {

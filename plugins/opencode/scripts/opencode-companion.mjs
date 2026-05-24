@@ -879,7 +879,13 @@ async function handleCancel(argv) {
     );
   }
 
-  terminateProcessTree(job.pid ?? Number.NaN);
+  let terminateError = null;
+  try {
+    terminateProcessTree(job.pid ?? Number.NaN);
+  } catch (error) {
+    terminateError = error instanceof Error ? error.message : String(error);
+    appendLogLine(job.logFile, `Process terminate failed but cancel proceeds: ${terminateError}`);
+  }
   appendLogLine(job.logFile, "Cancelled by user.");
 
   const completedAt = nowIso();
