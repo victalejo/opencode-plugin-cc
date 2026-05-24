@@ -13,6 +13,8 @@ This plugin is a port of OpenAI's `codex-plugin-cc` that swaps the Codex backend
 - `/opencode:review` — read-only code review of your current git state
 - `/opencode:adversarial-review` — steerable challenge review with focus text
 - `/opencode:rescue`, `/opencode:status`, `/opencode:result`, `/opencode:cancel` — delegate work and manage background jobs
+- `/opencode:diff` — show a git diff scoped to files opencode touched in the last rescue
+- `/opencode:sessions` — list opencode sessions available to resume in this workspace
 - `/opencode:setup` — verify the local opencode CLI, ask to install if missing, toggle the stop-time review gate
 
 ## Requirements
@@ -121,7 +123,9 @@ Use it when you want opencode to:
 - continue a previous opencode task
 - take a faster or cheaper pass with a smaller model
 
-Supports `--background`, `--wait`, `--resume`, `--fresh`, and `--model <provider/model>`. If you omit `--resume` and `--fresh`, the plugin can offer to continue the latest rescue session for this repo.
+Supports `--background`, `--wait`, `--resume`, `--fresh`, `--model <provider/model>`, and `--context <file1,file2,...>`. If you omit `--resume` and `--fresh`, the plugin can offer to continue the latest rescue session for this repo.
+
+`--context` takes a comma-separated list of file paths (relative to the workspace) and inlines those files into the prompt sent to opencode, so opencode does not have to spend a discovery turn re-locating them.
 
 Examples:
 
@@ -131,6 +135,7 @@ Examples:
 /opencode:rescue --resume apply the top fix from the last run
 /opencode:rescue --model anthropic/claude-sonnet-4-20250514 investigate the flaky integration test
 /opencode:rescue --background investigate the regression
+/opencode:rescue --context src/auth.ts,src/auth.test.ts explain why the new auth test fails
 ```
 
 You can also just ask in plain prose for a task to be delegated to opencode:
@@ -169,6 +174,33 @@ Cancels an active background opencode job.
 ```bash
 /opencode:cancel
 /opencode:cancel task-abc123
+```
+
+### `/opencode:diff`
+
+Shows a `git diff HEAD` plus a `git status --porcelain` scoped to the files opencode reported touching in the last (or specified) rescue job. Useful for quickly reviewing only the changes a `--write` rescue produced, without surrounding edits you made yourself.
+
+```bash
+/opencode:diff
+/opencode:diff task-abc123
+```
+
+If the resolved job did not touch any files (for example, a read-only rescue), the command reports that explicitly and points you at `/opencode:result`.
+
+### `/opencode:sessions`
+
+Lists opencode sessions available to resume. By default it filters to the current workspace directory.
+
+```bash
+/opencode:sessions
+/opencode:sessions --all
+/opencode:sessions --max-count 50
+```
+
+Each row shows the session id, title, relative age, and the directory the session was started in. To resume a specific session inside opencode, copy its id and run:
+
+```bash
+opencode run --continue --session <session-id>
 ```
 
 ### `/opencode:setup`

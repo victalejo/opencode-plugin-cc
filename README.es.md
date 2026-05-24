@@ -13,6 +13,8 @@ Este plugin es un port del `codex-plugin-cc` de OpenAI que cambia el backend de 
 - `/opencode:review` — revisión de código *read-only* sobre el estado actual de git
 - `/opencode:adversarial-review` — revisión orientada a *cuestionar* el diseño, con texto de focus personalizable
 - `/opencode:rescue`, `/opencode:status`, `/opencode:result`, `/opencode:cancel` — delegar trabajo y manejar jobs en background
+- `/opencode:diff` — muestra un git diff acotado a los archivos que opencode tocó en el último rescue
+- `/opencode:sessions` — lista las sesiones de opencode disponibles para retomar en este workspace
 - `/opencode:setup` — verifica que opencode esté instalado, ofrece instalarlo si falta, y controla el review gate al cierre de turno
 
 ## Requisitos
@@ -121,7 +123,9 @@ Le pasa una tarea a opencode a través del subagent `opencode:rescue`.
 - continúe una tarea previa de opencode
 - haga un pase más rápido o más barato con un modelo distinto
 
-Soporta `--background`, `--wait`, `--resume`, `--fresh`, y `--model <provider/model>`. Si omites `--resume` y `--fresh`, el plugin puede ofrecerte continuar el último rescue del repo.
+Soporta `--background`, `--wait`, `--resume`, `--fresh`, `--model <provider/model>`, y `--context <file1,file2,...>`. Si omites `--resume` y `--fresh`, el plugin puede ofrecerte continuar el último rescue del repo.
+
+`--context` recibe una lista separada por comas de paths de archivos (relativos al workspace) y los inlina en el prompt que se le envía a opencode, así opencode no tiene que gastar un turno de descubrimiento re-localizándolos.
 
 Ejemplos:
 
@@ -131,6 +135,7 @@ Ejemplos:
 /opencode:rescue --resume aplica el fix principal de la corrida anterior
 /opencode:rescue --model anthropic/claude-sonnet-4-20250514 investiga el test de integración inestable
 /opencode:rescue --background investiga la regresión
+/opencode:rescue --context src/auth.ts,src/auth.test.ts explica por qué falla el nuevo test de auth
 ```
 
 También puedes pedirlo en prosa y se delegará a opencode:
@@ -169,6 +174,33 @@ Cancela un job en background activo.
 ```bash
 /opencode:cancel
 /opencode:cancel task-abc123
+```
+
+### `/opencode:diff`
+
+Muestra un `git diff HEAD` más un `git status --porcelain` acotados a los archivos que opencode reportó haber tocado en el último (o especificado) rescue. Útil para revisar rápido sólo los cambios que produjo un rescue con `--write`, sin que se mezcle con cambios paralelos tuyos.
+
+```bash
+/opencode:diff
+/opencode:diff task-abc123
+```
+
+Si el job resuelto no tocó archivos (por ejemplo, un rescue read-only), el comando lo reporta explícitamente y te apunta a `/opencode:result`.
+
+### `/opencode:sessions`
+
+Lista las sesiones de opencode disponibles para retomar. Por defecto filtra al directorio del workspace actual.
+
+```bash
+/opencode:sessions
+/opencode:sessions --all
+/opencode:sessions --max-count 50
+```
+
+Cada fila muestra el session id, el título, la edad relativa y el directorio donde se inició la sesión. Para retomar una sesión específica desde opencode, copia su id y corre:
+
+```bash
+opencode run --continue --session <session-id>
 ```
 
 ### `/opencode:setup`

@@ -7,6 +7,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { parseArgs, splitRawArgumentString } from "./lib/args.mjs";
+import { assemblePromptWithContext, readContextFiles } from "./lib/context.mjs";
 import {
     buildPersistentTaskSessionName,
     DEFAULT_CONTINUE_PROMPT,
@@ -15,13 +16,14 @@ import {
     getOpencodeAvailability,
     getSessionRuntimeStatus,
     interruptOpencodeTurn,
+    listOpencodeSessions,
     parseStructuredOutput,
     readOutputSchema,
     runOpencodeTurn
   } from "./lib/opencode.mjs";
 import { readStdinIfPiped } from "./lib/fs.mjs";
 import { collectReviewContext, ensureGitRepository, resolveReviewTarget } from "./lib/git.mjs";
-import { binaryAvailable, terminateProcessTree } from "./lib/process.mjs";
+import { binaryAvailable, runCommand, terminateProcessTree } from "./lib/process.mjs";
 import { loadPromptTemplate, interpolateTemplate } from "./lib/prompts.mjs";
 import {
   generateJobId,
@@ -55,8 +57,10 @@ import {
   renderStoredJobResult,
   renderCancelReport,
   renderJobStatusReport,
+  renderSessionsList,
   renderSetupReport,
   renderStatusReport,
+  renderTaskDiffReport,
   renderTaskResult
 } from "./lib/render.mjs";
 
@@ -73,10 +77,12 @@ function printUsage() {
       "  node scripts/opencode-companion.mjs setup [--enable-review-gate|--disable-review-gate] [--json]",
       "  node scripts/opencode-companion.mjs review [--wait|--background] [--base <ref>] [--scope <auto|working-tree|branch>]",
       "  node scripts/opencode-companion.mjs adversarial-review [--wait|--background] [--base <ref>] [--scope <auto|working-tree|branch>] [focus text]",
-      "  node scripts/opencode-companion.mjs task [--background] [--write] [--resume-last|--resume|--fresh] [--model <provider/model>] [prompt]",
+      "  node scripts/opencode-companion.mjs task [--background] [--write] [--resume-last|--resume|--fresh] [--model <provider/model>] [--context <file1,file2>] [prompt]",
       "  node scripts/opencode-companion.mjs status [job-id] [--all] [--json]",
       "  node scripts/opencode-companion.mjs result [job-id] [--json]",
-      "  node scripts/opencode-companion.mjs cancel [job-id] [--json]"
+      "  node scripts/opencode-companion.mjs cancel [job-id] [--json]",
+      "  node scripts/opencode-companion.mjs sessions [--all] [--max-count <n>] [--json]",
+      "  node scripts/opencode-companion.mjs diff [job-id] [--json]"
     ].join("\n")
   );
 }
@@ -422,9 +428,11 @@ async function executeTaskRun(request) {
     throw new Error("Provide a prompt, a prompt file, piped stdin, or use --resume-last.");
   }
 
+  const promptForOpencode = assemblePromptWithContext(request.prompt, request.contextFiles);
+
   const result = await runOpencodeTurn(workspaceRoot, {
     resumeSessionId: resumeThreadId,
-    prompt: request.prompt,
+    prompt: promptForOpencode,
     defaultPrompt: resumeThreadId ? DEFAULT_CONTINUE_PROMPT : "",
     model: request.model,
     agent: request.write ? "build" : "plan",
@@ -542,11 +550,12 @@ function buildTaskJob(workspaceRoot, taskMetadata, write) {
   });
 }
 
-function buildTaskRequest({ cwd, model, prompt, write, resumeLast, jobId }) {
+function buildTaskRequest({ cwd, model, prompt, contextFiles, write, resumeLast, jobId }) {
   return {
     cwd,
     model,
     prompt,
+    contextFiles: Array.isArray(contextFiles) && contextFiles.length > 0 ? contextFiles : null,
     write,
     resumeLast,
     jobId
@@ -673,7 +682,7 @@ async function handleReview(argv) {
 
 async function handleTask(argv) {
   const { options, positionals } = parseCommandInput(argv, {
-    valueOptions: ["model", "cwd", "prompt-file"],
+    valueOptions: ["model", "cwd", "prompt-file", "context"],
     booleanOptions: ["json", "write", "resume-last", "resume", "fresh", "background"],
     aliasMap: {
       m: "model"
@@ -684,6 +693,7 @@ async function handleTask(argv) {
   const workspaceRoot = resolveCommandWorkspace(options);
   const model = normalizeRequestedModel(options.model);
   const prompt = readTaskPrompt(cwd, options, positionals);
+  const contextFiles = readContextFiles(cwd, options.context);
 
   const resumeLast = Boolean(options["resume-last"] || options.resume);
   const fresh = Boolean(options.fresh);
@@ -705,6 +715,7 @@ async function handleTask(argv) {
       cwd,
       model,
       prompt,
+      contextFiles,
       write,
       resumeLast,
       jobId: job.id
@@ -722,6 +733,7 @@ async function handleTask(argv) {
         cwd,
         model,
         prompt,
+        contextFiles,
         write,
         resumeLast,
         jobId: job.id,
@@ -856,6 +868,94 @@ function handleTaskResumeCandidate(argv) {
   outputCommandResult(payload, rendered, options.json);
 }
 
+function handleDiff(argv) {
+  const { options, positionals } = parseCommandInput(argv, {
+    valueOptions: ["cwd"],
+    booleanOptions: ["json"]
+  });
+
+  const cwd = resolveCommandCwd(options);
+  const reference = positionals[0] ?? "";
+  const { workspaceRoot, job } = resolveResultJob(cwd, reference);
+
+  if (job.jobClass !== "task") {
+    throw new Error(
+      `Job ${job.id} is a ${job.jobClass ?? "non-task"} job; /opencode:diff only inspects rescue (task) jobs. Pass a rescue job id explicitly or run /opencode:status to list candidates.`
+    );
+  }
+
+  const storedJob = readStoredJob(workspaceRoot, job.id);
+  const touchedFiles = Array.isArray(storedJob?.result?.touchedFiles)
+    ? storedJob.result.touchedFiles.filter((entry) => typeof entry === "string" && entry.trim())
+    : [];
+
+  let statusOutput = "";
+  let diffOutput = "";
+  if (touchedFiles.length > 0) {
+    const statusResult = runCommand("git", ["status", "--porcelain", "--", ...touchedFiles], { cwd: workspaceRoot });
+    if (statusResult.status === 0) {
+      statusOutput = statusResult.stdout;
+    }
+
+    const diffResult = runCommand("git", ["diff", "HEAD", "--", ...touchedFiles], { cwd: workspaceRoot });
+    if (diffResult.status === 0) {
+      diffOutput = diffResult.stdout;
+    } else if (diffResult.stderr && /unknown revision|bad revision/i.test(diffResult.stderr)) {
+      const fallback = runCommand("git", ["diff", "--", ...touchedFiles], { cwd: workspaceRoot });
+      if (fallback.status === 0) {
+        diffOutput = fallback.stdout;
+      }
+    }
+  }
+
+  const report = {
+    jobId: job.id,
+    jobTitle: job.title ?? "",
+    jobStatus: job.status,
+    touchedFiles,
+    statusOutput,
+    diffOutput
+  };
+
+  outputCommandResult(report, renderTaskDiffReport(report), options.json);
+}
+
+function handleSessions(argv) {
+  const { options } = parseCommandInput(argv, {
+    valueOptions: ["cwd", "max-count"],
+    booleanOptions: ["json", "all"]
+  });
+
+  const cwd = resolveCommandCwd(options);
+  ensureOpencodeAvailable(cwd);
+
+  const maxCountRaw = options["max-count"];
+  const maxCount = maxCountRaw != null ? Number.parseInt(String(maxCountRaw), 10) : 20;
+  if (!Number.isInteger(maxCount) || maxCount <= 0) {
+    throw new Error("--max-count must be a positive integer.");
+  }
+
+  const allSessions = listOpencodeSessions(cwd, { maxCount });
+  const scope = options.all ? "all" : "workspace";
+  const filtered = options.all
+    ? allSessions
+    : allSessions.filter((session) => {
+        if (!session.directory) {
+          return false;
+        }
+        return path.resolve(session.directory) === path.resolve(cwd);
+      });
+
+  const payload = {
+    scope,
+    cwd,
+    count: filtered.length,
+    sessions: filtered
+  };
+
+  outputCommandResult(payload, renderSessionsList(filtered, { scope, cwd }), options.json);
+}
+
 async function handleCancel(argv) {
   const { options, positionals } = parseCommandInput(argv, {
     valueOptions: ["cwd"],
@@ -956,6 +1056,12 @@ async function main() {
       break;
     case "task-resume-candidate":
       handleTaskResumeCandidate(argv);
+      break;
+    case "sessions":
+      handleSessions(argv);
+      break;
+    case "diff":
+      handleDiff(argv);
       break;
     case "cancel":
       await handleCancel(argv);

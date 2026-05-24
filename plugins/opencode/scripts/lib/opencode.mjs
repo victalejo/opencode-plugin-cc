@@ -410,6 +410,35 @@ export async function interruptOpencodeTurn(cwd, { threadId } = {}) {
   };
 }
 
+export function listOpencodeSessions(cwd, options = {}) {
+  const args = ["session", "list", "--format", "json"];
+  const maxCount = Number.isInteger(options.maxCount) && options.maxCount > 0 ? options.maxCount : null;
+  if (maxCount) {
+    args.push("--max-count", String(maxCount));
+  }
+  const probe = runCommand(opencodeBin(), args, { cwd });
+  if (probe.status !== 0) {
+    const detail = String(probe.stderr || probe.stdout || "").trim();
+    throw new Error(
+      detail
+        ? `opencode session list failed: ${detail}`
+        : "opencode session list failed."
+    );
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(probe.stdout || "[]");
+  } catch (error) {
+    throw new Error(`opencode session list returned invalid JSON: ${error.message}`);
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error("opencode session list did not return an array.");
+  }
+  return parsed;
+}
+
 export async function findLatestTaskSession(cwd) {
   const probe = runCommand(opencodeBin(), ["session", "list"], { cwd });
   if (probe.status !== 0 || !probe.stdout) return null;

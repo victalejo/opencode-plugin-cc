@@ -445,6 +445,101 @@ export function renderStoredJobResult(job, storedJob) {
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
+function formatRelativeAge(timestampMs, nowMs = Date.now()) {
+  if (!Number.isFinite(timestampMs)) {
+    return "";
+  }
+  const diffSec = Math.max(0, Math.floor((nowMs - timestampMs) / 1000));
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 48) return `${diffHour}h ago`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 30) return `${diffDay}d ago`;
+  const diffMonth = Math.floor(diffDay / 30);
+  if (diffMonth < 12) return `${diffMonth}mo ago`;
+  return `${Math.floor(diffMonth / 12)}y ago`;
+}
+
+export function renderTaskDiffReport(report) {
+  const lines = [
+    "# opencode Rescue Diff",
+    "",
+    `Job: ${report.jobId}${report.jobTitle ? ` (${report.jobTitle})` : ""}`,
+    `Status: ${report.jobStatus}`,
+    `Touched files: ${report.touchedFiles.length}`,
+    ""
+  ];
+
+  if (report.touchedFiles.length === 0) {
+    lines.push("opencode did not report any touched files for this job.");
+    lines.push("");
+    lines.push("If the rescue ran with `--write` and you expected edits, check `/opencode:result` for the raw output.");
+    return `${lines.join("\n").trimEnd()}\n`;
+  }
+
+  lines.push("Files reported by opencode:");
+  for (const file of report.touchedFiles) {
+    lines.push(`- ${file}`);
+  }
+  lines.push("");
+
+  if (report.statusOutput && report.statusOutput.trim()) {
+    lines.push("## git status (scoped to touched files)");
+    lines.push("```");
+    lines.push(report.statusOutput.trimEnd());
+    lines.push("```");
+    lines.push("");
+  }
+
+  if (report.diffOutput && report.diffOutput.trim()) {
+    lines.push("## git diff HEAD (scoped to touched files)");
+    lines.push("```diff");
+    lines.push(report.diffOutput.trimEnd());
+    lines.push("```");
+  } else {
+    lines.push("## git diff HEAD");
+    lines.push("(no tracked changes against HEAD for the listed files; the files may be new and untracked — see `git status` above.)");
+  }
+
+  return `${lines.join("\n").trimEnd()}\n`;
+}
+
+export function renderSessionsList(sessions, options = {}) {
+  const scope = options.scope === "all" ? "all directories" : `current workspace${options.cwd ? ` (${options.cwd})` : ""}`;
+  const lines = [
+    "# opencode Sessions",
+    "",
+    `Scope: ${scope}`,
+    `Count: ${sessions.length}`,
+    ""
+  ];
+
+  if (sessions.length === 0) {
+    lines.push("No matching opencode sessions found.");
+    if (options.scope !== "all") {
+      lines.push("", "Use `/opencode:sessions --all` to list sessions from every directory.");
+    }
+    return `${lines.join("\n").trimEnd()}\n`;
+  }
+
+  lines.push("| Session ID | Title | Updated | Directory |");
+  lines.push("| --- | --- | --- | --- |");
+  for (const session of sessions) {
+    lines.push(
+      `| ${escapeMarkdownCell(session.id)} | ${escapeMarkdownCell(session.title ?? "")} | ${escapeMarkdownCell(formatRelativeAge(session.updated))} | ${escapeMarkdownCell(session.directory ?? "")} |`
+    );
+  }
+  lines.push("");
+  lines.push("Resume in opencode directly:");
+  lines.push("```");
+  lines.push("opencode run --continue --session <session-id>");
+  lines.push("```");
+
+  return `${lines.join("\n").trimEnd()}\n`;
+}
+
 export function renderCancelReport(job) {
   const lines = [
     "# opencode Cancel",

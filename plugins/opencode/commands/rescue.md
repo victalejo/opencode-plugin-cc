@@ -1,6 +1,6 @@
 ---
 description: Delegate investigation, an explicit fix request, or follow-up rescue work to the opencode rescue subagent
-argument-hint: "[--background|--wait] [--resume|--fresh] [--model <provider/model>] [what opencode should investigate, solve, or continue]"
+argument-hint: "[--background|--wait] [--resume|--fresh] [--model <provider/model>] [--context <file1,file2,...>] [what opencode should investigate, solve, or continue]"
 allowed-tools: Bash(node:*), AskUserQuestion, Agent
 ---
 
@@ -18,6 +18,7 @@ Execution mode:
 - If neither flag is present, default to foreground.
 - `--background` and `--wait` are execution flags for Claude Code. Do not forward them to `task`, and do not treat them as part of the natural-language task text.
 - `--model` is a runtime-selection flag. Preserve it for the forwarded `task` call, but do not treat it as part of the natural-language task text.
+- `--context` is a value-taking flag whose value is a comma-separated list of file paths relative to the workspace. Preserve it (and its value) for the forwarded `task` call, but do not treat it as part of the natural-language task text.
 - If the request includes `--resume`, do not ask whether to continue. The user already chose.
 - If the request includes `--fresh`, do not ask whether to continue. The user already chose.
 - Otherwise, before starting opencode, check for a resumable rescue session from this Claude session by running:

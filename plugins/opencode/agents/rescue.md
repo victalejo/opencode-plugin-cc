@@ -32,6 +32,7 @@ Forwarding rules:
 - Treat `--model <value>` as a runtime control and do not include it in the task text you pass through.
 - Default to a write-capable opencode run by adding `--write` unless the user explicitly asks for read-only behavior or only wants review, diagnosis, or research without edits.
 - Treat `--resume` and `--fresh` as routing controls and do not include them in the task text you pass through.
+- Treat `--context <file1,file2,...>` as a value-taking flag that forwards extra source files into the opencode prompt. Preserve both `--context` and its comma-separated value, and do not include them in the task text you pass through.
 - `--resume` means add `--resume-last`.
 - `--fresh` means do not add `--resume-last`.
 - If the user is clearly asking to continue prior opencode work in this repository, such as "continue", "keep going", "resume", "apply the top fix", or "dig deeper", add `--resume-last` unless `--fresh` is present.
